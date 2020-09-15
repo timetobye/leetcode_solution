@@ -1,5 +1,6 @@
-# Created by https://www.toptal.com/developers/gitignore/api/venv,python,macos,intellij,pycharm,jetbrains
-# Edit at https://www.toptal.com/developers/gitignore?templates=venv,python,macos,intellij,pycharm,jetbrains
+
+# Created by https://www.toptal.com/developers/gitignore/api/venv,python,intellij,pycharm,jupyternotebooks,macos,jetbrains
+# Edit at https://www.toptal.com/developers/gitignore?templates=venv,python,intellij,pycharm,jupyternotebooks,macos,jetbrains
 
 ### Intellij ###
 # Covers JetBrains IDEs: IntelliJ, RubyMine, PhpStorm, AppCode, PyCharm, CLion, Android Studio, WebStorm and Rider
@@ -171,6 +172,20 @@ fabric.properties
 
 # CodeStream plugin
 # https://plugins.jetbrains.com/plugin/12206-codestream
+
+### JupyterNotebooks ###
+# gitignore template for Jupyter Notebooks
+# website: http://jupyter.org/
+
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
+
+# IPython
+profile_default/
+ipython_config.py
+
+# Remove previous ipynb_checkpoints
+#   git rm -r .ipynb_checkpoints/
 
 ### macOS ###
 # General
@@ -348,11 +363,8 @@ doc/_build/
 target/
 
 # Jupyter Notebook
-.ipynb_checkpoints
 
 # IPython
-profile_default/
-ipython_config.py
 
 # pyenv
 .python-version
@@ -416,4 +428,4 @@ dmypy.json
 pyvenv.cfg
 pip-selfcheck.json
 
-# End of https://www.toptal.com/developers/gitignore/api/venv,python,macos,intellij,pycharm,jetbrains
+# End of https://www.toptal.com/developers/gitignore/api/venv,python,intellij,pycharm,jupyternotebooks,macos,jetbrains
