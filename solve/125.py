@@ -25,6 +25,37 @@ if __name__ == "__main__":
 """
 
 
+from collections import deque
+
+class Solution:
+    def isPalindrome(self, s: str) -> bool:
+        strings = deque()
+
+        for char in s:
+            if char.isalnum():
+                strings.append(char.lower())
+
+        while len(strings) > 1:
+            if strings.pop() != strings.popleft():
+                return False
+
+        return True
+
+if __name__ == "__main__":
+    solution = Solution()
+    strings = "0P"
+    res = solution.isPalindrome(strings)
+    print(res)
+
+
+class Solution:
+    # 가장 최적화 된 코드, 제일 빠르다. 슬라이싱으로 하는 것이 낫다.
+    def isPalindrome(self, s: str) -> bool:
+        s = s.lower()
+        s = re.sub('[^a-z0-9]', '', s)
+
+        return s == s[::-1]
+
 """
 legacy code
 
