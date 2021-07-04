@@ -13,6 +13,21 @@ class Solution:
         return counter
 
 
+from collections import Counter
+
+
+class Solution:
+    def numJewelsInStones(self, jewels, stones):
+        counter_stones = Counter(stones)
+        count = 0
+
+        for jewel in jewels:
+            if jewel in counter_stones:
+                count += counter_stones[jewel]
+
+        return count
+
+
 if __name__ == "__main__":
     J = "aA"
     S = "aAAbbbb"
