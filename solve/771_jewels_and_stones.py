@@ -28,10 +28,4 @@ class Solution:
         return count
 
 
-if __name__ == "__main__":
-    J = "aA"
-    S = "aAAbbbb"
 
-    solution = Solution()
-    res = solution.numJewelsInStones(J, S)
-    print(res)
