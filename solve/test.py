@@ -21,6 +21,7 @@ def get_parsing_file_list():
 
     for file_name in current_folder_file_names:
         if file_name[-2:] == 'py':
+            file_name = file_name.replace(' ', '_')
             parsing_file_list.append(file_name)
 
     return parsing_file_list
@@ -41,7 +42,7 @@ def print_markdown_form(sorted_file_name_list):
         problem_number = file_name.split('_', 1)[0]  # str.split([sep[, maxsplit]])
         problem_title = file_name.split('_', 1)[1][:-3].replace(' ', '_')
         try:
-            print(f'|{problem_number}|{problem_title}|[{problem_title}](https://github.com/timetobye/leetcode_solution/tree/master/solve/{file_name})'
+            print(f'|{problem_number}|{problem_title}|[Link](https://github.com/timetobye/leetcode_solution/tree/master/solve/{file_name})'
                   f'|성공| |')
 
         except Exception as e:
