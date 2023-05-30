@@ -6,10 +6,6 @@ from os import listdir
 - 그리고 문항 번호를 슬라이싱 해서 웹에서 정보를 가져옵니다.
 - 마크다운 양식에 맞게 프린트 한 후 정리합니다.
 
-# Result
-|알고리즘|문항번호 + 문제 url|문제 이름|성공 여부|비고|
-|---|---|---|---|---|
-
 """
 
 
@@ -42,7 +38,8 @@ def print_markdown_form(sorted_file_name_list):
         problem_number = file_name.split('_', 1)[0]  # str.split([sep[, maxsplit]])
         problem_title = file_name.split('_', 1)[1][:-3].replace(' ', '_')
         try:
-            print(f'|{problem_number}|{problem_title}|[Link](https://github.com/timetobye/leetcode_solution/tree/master/solve/{file_name})'
+            print(f'|{problem_number}|{problem_title}|'
+                  f'[Link](https://github.com/timetobye/leetcode_solution/tree/master/solve/{file_name})'
                   f'|성공| |')
 
         except Exception as e:
