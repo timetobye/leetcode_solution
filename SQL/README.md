@@ -7,7 +7,7 @@ LeetCode 에서 제공하는 SQL 50을 풀이한 기록입니다.
 
 ### Template
 
-Q.
+Q. 
 
 ```sql
 
@@ -161,3 +161,228 @@ inner join (
 group by 1
 order by 1
 ```
+
+Q. 577. Employee Bonus
+
+
+```sql
+select name, bonus
+from Employee
+left join Bonus as bns on bns.empId = Employee.empId
+where bonus is null or bonus < 1000
+order by 1
+```
+
+Q. 1280. Students and Examinations
+
+풀이방법
+- cross join 을 이용하여 Students, Subjects 를 조인한다.
+- 이렇게 하는 이유는 원하는 결과에서 학생과 과목이 1대1이 되는 것을 원하기 때문이다.
+- 일부 학생 중에는 시험을 보지 않는 경우도 있는데, 이 경우에 단순하게 inner, left 를 할 경우 과목 목록에서 제외가 된다.
+- 그렇기 때문에 기본적으로 cross join 을 이용하여 전체 테이블을 만들고, 그 다음에 examinations 테이블을 별도 집계하여 붙이는 방향으로 처리
+- cross join 을 생각 못 해서 조금 고생했다.
+
+```sql
+select base.student_id
+     , base.student_name
+     , base.subject_name
+     , IFNULL(attended_exams, 0) as attended_exams
+from (
+     select student_id, student_name, subject_name
+     from Students as st
+     cross join Subjects
+) as base
+left join (
+     select student_id, subject_name, count(subject_name) as attended_exams
+     from Examinations
+     group by 1, 2
+) as ex on ex.student_id = base.student_id
+       and ex.subject_name = base.subject_name
+order by 1, 3
+```
+
+Q. 570. Managers with at Least 5 Direct Reports
+
+```sql
+select name
+from Employee as emp
+inner join (
+    select managerId, count(*) as cnt
+    from Employee
+    where 1=1
+      and managerId is not null
+    group by managerId
+    having cnt >= 5
+) as cnt_manager on cnt_manager.managerId = emp.id
+```
+
+Q. 1934. Confirmation Rate
+
+case when + sum 을 이용하면 비율을 구할 때 쉽고 빠르게 구할 수 있다.
+- group by 를 빼먹었는데, IDE 에 너무 익숙해진 것은 아닐련지...
+
+```sql
+select sg.user_id
+     , round(
+          case when total_count is null then 0
+               else confirm_count / total_count
+          end
+     , 2) as confirmation_rate
+from Signups as sg
+left join (
+     select user_id
+          , sum(case when action = "confirmed" then 1 else 0 end) as confirm_count
+          , count(*) as total_count
+     from Confirmations
+     group by 1
+) as cf on cf.user_id = sg.user_id
+order by 1
+```
+
+### Basic Aggregate Functions
+
+Q. 620. Not Boring Movies
+
+`MOD` function 을 사용하거나 `%` 를 이용하면 된다.
+
+```sql
+select *
+from Cinema
+where description != "boring"
+  and MOD(id, 2) != 0
+order by rating desc
+
+
+select *
+from Cinema
+where description != "boring"
+  and id % 2 != 0
+order by rating desc
+
+select *
+from Cinema
+where description != "boring"
+  and id % 2 = 1
+order by rating desc
+```
+
+`!=` 와 `=` 를 사용하는 것에 대한 차이를 GPT 를 이용하여 확인
+
+Ask > mysql 에서 쿼리 성능 관점에서 != 를 사용하는 것과 = 를 사용하는 것은 어떤 차이가 있니?
+
+MySQL에서 쿼리의 성능을 고려할 때, !=와 =의 사용에 따른 차이가 있을 수 있습니다. 이 두 연산자는 비교 연산을 수행하는 데 사용되며, 성능 측면에서 고려해야 할 몇 가지 점이 있습니다.
+- 인덱스 활용 : = 연산자는 인덱스를 최대한 활용하여 검색을 빠르게 할 수 있습니다. 반면에 != 연산자는 부정 연산이라서 인덱스를 효율적으로 활용하지 못할 가능성이 있습니다. 인덱스가 있는 열을 기반으로 조건을 걸 때는 =를 사용하는 것이 일반적으로 더 좋은 성능을 낼 수 있습니다.
+- 쿼리 옵티마이저 최적화 : MySQL 옵티마이저는 = 연산자의 경우 일치하는 값을 찾는 데 더 효율적인 방법을 선택할 수 있습니다. 그러나 != 연산자의 경우 인덱스 효율성에 영향을 주기 때문에 조건에 따라 성능이 달라질 수 있습니다.
+- 데이터 분포와 크기 : 데이터의 분포와 크기에 따라 != 연산자의 성능이 영향을 받을 수 있습니다. 만약 != 조건이 일반적으로 많은 레코드를 반환한다면 성능에 부정적인 영향을 줄 수 있습니다.
+- 인덱스 유무 : =와 != 연산자의 성능은 해당 열에 인덱스가 있는지 여부에 따라 달라질 수 있습니다. 인덱스가 없는 열을 대상으로 연산을 수행하면 테이블을 풀 스캔해야 하므로 성능이 저하될 수 있습니다.
+- 일반적으로는 = 연산자가 인덱스 활용과 옵티마이저 최적화 측면에서 더 유리한 경향이 있습니다. 하지만 성능을 평가할 때는 데이터베이스의 스키마, 데이터 분포, 인덱스 구성 등을 고려해야 합니다. 필요한 경우 쿼리 실행 계획을 분석하고, 인덱스를 적절하게 사용하여 성능을 최적화하는 것이 중요합니다.
+
+Q. Average Selling Price
+
+```sql
+select UnitsSold.product_id
+     , round(sum(price * units) / sum(units), 2) as average_price
+from UnitsSold
+left join Prices on Prices.product_id = UnitsSold.product_id
+                and Prices.start_date <= UnitsSold.purchase_date
+                and Prices.end_date >= UnitsSold.purchase_date
+group by 1
+order by 1
+
+select UnitsSold.product_id
+     , round(sum(price * units) / sum(units), 2) as average_price
+from UnitsSold
+left join Prices on Prices.product_id = UnitsSold.product_id
+where Prices.start_date <= UnitsSold.purchase_date
+  and Prices.end_date >= UnitsSold.purchase_date                
+group by 1
+order by 1
+
+-- between 을 사용해도 된다. 가독성 측면
+```
+
+Q. 1075. Project Employees I
+
+연산의 최적화를 위해서 avg 를 쓰는 것이 더 낫다.
+
+```sql
+select project_id
+     , round(avg(experience_years), 2) as average_years
+from Project as pj
+left join Employee as emp on emp.employee_id = pj.employee_id
+group by 1
+order by 1
+
+
+select project_id
+     , round(sum(experience_years) / count(pj.employee_id), 2) as average_years
+from Project as pj
+left join Employee as emp on emp.employee_id = pj.employee_id
+group by 1
+order by 1
+```
+
+Q. 1633. Percentage of Users Attended a Contest
+
+```sql
+select contest_id
+     , round(100.0 * cnt_user_id / total_user_count, 2) as percentage
+from (
+     select contest_id
+          , count(user_id) as cnt_user_id
+     from Register
+     group by 1
+) as base
+cross join (
+     select count(user_id) as total_user_count 
+     from Users
+     ) as usr_cnt
+order by percentage desc, contest_id asc
+
+-- 아래와 같이 작성할 수도 있는데, 내가 작성하는 스타일은 아니다.
+
+select contest_id ,round (count(distinct user_id )*100/(select count( user_id )from Users ),2)as percentage from
+register
+group by contest_id
+order by percentage desc , contest_id 
+```
+
+Q. 1211. Queries Quality and Percentage
+
+IF를 사용해서 처리 할 수도 있다.
+
+```sql
+select query_name
+     , round(avg(rating / position), 2) as quality
+     , round(100.0 * avg(case when rating < 3 then 1 else 0 end), 2) as poor_query_percentage
+from Queries
+group by 1
+order by 1
+```
+
+Q. 1193. Monthly Transactions I
+
+```sql
+select date_format(trans_date, "%Y-%m") as month
+     , country
+     , count(trans_date) as trans_count
+     , sum(IF(state="approved", 1, 0)) as approved_count
+     , sum(amount) as trans_total_amount
+     , sum(IF(state="approved", amount, 0)) as approved_total_amount
+from Transactions
+group by 1, 2
+order by 1, 2, 3 desc
+```
+
+Q. 
+
+```sql
+
+```
+
+Q. 
+
+```sql
+
+```
+
