@@ -374,6 +374,349 @@ group by 1, 2
 order by 1, 2, 3 desc
 ```
 
+Q. 1174. Immediate Food Delivery II
+
+```sql
+select round(100.0 * sum(IF(first_order_date = pref_date, 1, 0)) / count(customer_id), 2) as immediate_percentage
+from(
+    select customer_id
+        , min(order_date) as first_order_date
+        , min(customer_pref_delivery_date) as pref_date
+    from Delivery
+    group by 1
+) as base
+```
+
+Q. 550. Game Play Analysis IV
+
+null 을 처리하는 연산을 별도로 해주지는 않았다.
+- null 과 연산을 하게 되면 null 로 나오기 때문에 의미를 지니지 않아서 그렇게 한 것이다.
+- 그러나 연산 결과가 필요한 것이라면, 별도의 처리를 해줘야 한다.
+- 예를 들어 `COALESCE` 또는 `IFNULL` 등을 이용하여 유효한 값으로 대체하고 연산을 해줘야 한다.
+
+```sql
+select round(sum(case when datediff(next_loging_event_date, first_login_event_date) = 1 then 1 else 0 end) / count(distinct player_id), 2) as fraction
+from (
+    select player_id
+        , min(event_date) over(partition by player_id order by event_date asc) as first_login_event_date
+        , lead(event_date) over(partition by player_id order by event_date asc) as next_loging_event_date
+    from Activity
+) as base
+```
+
+### Sorting and Grouping
+
+Q. 2356. Number of Unique Subjects Taught by Each Teacher
+
+```sql
+select teacher_id, count(distinct subject_id) as cnt
+from Teacher
+group by 1
+order by 1
+```
+
+Q. User Activity for the Past 30 Days I
+
+서버 오류로 문제 페이지가 열리지 않음
+
+```sql
+
+```
+
+Q. 1070. Product Sales Analysis III
+
+문제를 다소 잘못 이해하고 접근하였다.
+- 같은 해에 동일 product_id 라도 다른 레코드 값을 가질 수 있는 경우가 있다.
+- 왜 이렇게 나올까?
+- (sale_id, year) is the primary key (combination of columns with unique values) of this table.
+product_id is a foreign key (reference column) to Product table.
+Each row of this table shows a sale on the product product_id in a certain year.
+Note that the price is per unit.
+- 수량과 가격은 다를 수 있는 것을 간과 하였다.
+- 그리고 row_number() 를 사용하는 것 대신에 Rank() 를 사용함으로써 이 문제를 해결하였다.
+- Rank() 는 row_number() 와 다르게 중복일 경우 중복은 동일 순위로 처리하고, 다음에 오는 순위는 중복 개수만큼 더해서 순위를 설정
+- row_number() 는 중복이 있으면 동일 순위로 처리하지 않고, 다음 순위로 처리를 한다.
+- 참고 : https://www.mysqltutorial.org/mysql-window-functions/mysql-row_number-function/
+- 참고 : https://www.mysqltutorial.org/mysql-window-functions/mysql-rank-function/
+- DENSE_RANK() 의 경우 중복은 동일 순위로 처리하되, 다음에 오는 순위는 바로 다음 숫자로 설정한다.
+- 참고 : https://www.mysqltutorial.org/mysql-window-functions/mysql-dense_rank-function/
+
+```bash
+| product_id | first_year | quantity | price |
+| ---------- | ---------- | -------- | ----- |
+| 34         | 1804       | 53       | 5393  |
+| 34         | 1804       | 27       | 3767  |
+```
+
+```sql
+select product_id, year as first_year, quantity, price
+from (
+    select product_id, year, quantity, price
+        , rank() over(partition by product_id order by year asc) as rk_year
+    from Sales
+) as base
+where rk_year = 1
+order by product_id;
+
+
+-- 오답
+select product_id, year as first_year, quantity, price
+from (
+    select product_id, year, quantity, price
+        , row_number() over(partition by product_id order by year asc) as rn_year
+    from Sales
+) as base
+where rn_year = 1
+order by product_id;
+
+-- 여러 해답
+select
+    product_id,
+    year as first_year,
+    quantity,
+    price
+from Sales
+where (product_id, year) in (select product_id, min(year) from Sales group by 1)
+```
+
+Q. 596. Classes More Than 5 Students
+
+```sql
+select class
+from Courses
+group by 1
+having count(distinct student) >= 5
+order by 1
+```
+
+Q. 1729. Find Followers Count
+
+```sql
+select user_id, count(follower_id) as followers_count
+from Followers
+group by 1
+order by user_id asc
+```
+
+Q. 619. Biggest Single Number
+
+```sql
+select max(num) as num
+from (
+    select num
+    from MyNumbers
+    group by 1
+    having count(num) = 1
+) as base
+```
+
+Q. 1045. Customers Who Bought All Products
+
+```sql
+select customer_id
+from Customer
+group by 1
+having count(distinct product_key) = (select count(product_key) from Product)
+order by 1
+```
+
+### Advanced Select and Joins
+
+Q. 1731. The Number of Employees Which Report to Each Employee
+
+문제를 잘못 이해했음. 그리고 Join 키를 잘못 설정해서 약간의 시간을 소요함
+- 어떤 키를 붙일 것인가에 대해서 명시적으로 작성을 해두고 진행을 하자. 그래야 헷갈리지 않는다.
+
+```sql
+select reports_to as employee_id
+     , mn.name
+     , count(distinct emp.employee_id) as reports_count
+     , round(avg(age), 0) as average_age 
+from Employees as emp
+left join (
+    select employee_id, name
+    from Employees
+    group by 1, 2
+) as mn on mn.employee_id = emp.reports_to
+where reports_to is not null
+group by 1, 2
+order by 1 asc
+```
+
+Q. 문제 서버 오류
+
+```sql
+
+```
+
+Q. 610. Triangle Judgement
+
+삼각형 조건을 찾는데 시간이 더 걸리는 문제
+
+```sql
+select x, y, z
+     , case when (x + y) > z and (y + z) > x and (z + x) > y then "Yes"
+            else "No"
+       end as triangle
+from Triangle
+```
+
+
+### 
+
+
+Q. 180. Consecutive Numbers
+
+
+```sql
+-- 풀기는 했으나, 좋지 않은 답
+select distinct num as ConsecutiveNums
+from (
+    select id, num, lag_num, cum_group
+        , sum(value) over (partition by cum_group order by id) as result
+    from (
+        select id, num, lag_num
+            , sum(case when lag_num = num then 0 else 1 end) over (order by id) as cum_group
+            , 1 as value
+        from (
+            select id, num
+                , IFNULL(lag(num) over(order by id), num) as lag_num
+            from Logs
+        ) as base
+    ) as calc
+) as res
+where result >= 3
+
+-- 3개 이상이기 때문에 lead, lag 를 이용해서 문제를 해결할 수도 있다. 가운데 있는 것을 기준으로 값 비교 하는 방식
+select distinct num as ConsecutiveNums
+from (
+    select num
+        , lead(num) over (order by id) as ld
+        , lag(num) over (order by id) as lg
+    from logs
+) as base
+where num = ld and num = lg
+
+-- 테이블을 조인 2번을 더 해서 할 수도 있다.
+```
+
+Q. 1164. Product Price at a Given Date
+
+window function 을 사용할 때 RANGE BETWEEN 에 대한 고민을 하지 못 했다.
+- `RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING` 을 사용하지 않을 경우, 기본값은 `RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW` 이므로 예상한 답이 안 나올 수 있다.
+
+대부분의 해답들이 union을 쓴 것 같은데, union을 이용한 접근은 생각을 못 했었다.
+
+문제가 생각보다 까다로웠다.
+
+```sql
+select pr.product_id, IFNULL(lv, 10) as price
+from (
+    select product_id, lv
+    from (
+        select product_id, new_price, change_date
+            , LAST_VALUE(new_price) over (
+                partition by product_id 
+                order by change_date asc
+                RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
+                ) as lv
+        from Products
+        where change_date <= "2019-08-16"
+    ) as base
+    group by 1, 2
+) as calc
+right join (select distinct product_id from Products) as pr on pr.product_id = calc.product_id
+```
+
+Q. 1204. Last Person to Fit in the Bus
+
+Moving Average, Moving Sum 등에 대한 경험이 있으면 쉽게 풀 수 있다.
+
+limit 1은 문제에서 요구하는 바를 쉽게 처리하기 위함이다.
+
+window function 을 사용하지 않을 경우에는 어떻게 해야 할까?
+- 기준이 있다고 할 때 그 다음에 오는 모든 것을 붙이는 방식을 취하고
+- 기준을 그룹화 해서 그 다음에 오는 모든 것의 합을 구하면 된다.
+- 출처 : https://leetcode.com/problems/last-person-to-fit-in-the-bus/solutions/3634727/best-optimum-solution-with-explanation-using-joins/?envType=study-plan-v2&envId=top-sql-50
+
+```sql
+select person_name
+from (
+    select turn, person_name
+        , IF(sum(weight) over (order by turn asc) <= 1000, 1, 0) as weight_limit_flag
+    from Queue
+) as base
+where weight_limit_flag = 1
+order by turn desc
+limit 1
+
+
+-- Solution From user
+
+# Write your MySQL query statement below
+SELECT 
+    q1.person_name
+FROM Queue q1 JOIN Queue q2 ON q1.turn >= q2.turn
+GROUP BY q1.turn
+HAVING SUM(q2.weight) <= 1000
+ORDER BY SUM(q2.weight) DESC
+LIMIT 1
+```
+
+```bash
+| person_id | person_name | weight | turn | person_id | person_name | weight | turn |
+| --------- | ----------- | ------ | ---- | --------- | ----------- | ------ | ---- |
+| 5         | Alice       | 250    | 1    | 5         | Alice       | 250    | 1    |
+---------------------------- group 1 - totaol sum : 250
+| 3         | Alex        | 350    | 2    | 5         | Alice       | 250    | 1    |
+| 3         | Alex        | 350    | 2    | 3         | Alex        | 350    | 2    |
+---------------------------- group 2 - totaol sum : 600
+| 6         | John Cena   | 400    | 3    | 5         | Alice       | 250    | 1    |
+| 6         | John Cena   | 400    | 3    | 6         | John Cena   | 400    | 3    |
+| 6         | John Cena   | 400    | 3    | 3         | Alex        | 350    | 2    |
+---------------------------- group 3 - totaol sum : 950
+| 2         | Marie       | 200    | 4    | 5         | Alice       | 250    | 1    |
+| 2         | Marie       | 200    | 4    | 2         | Marie       | 200    | 4    |
+| 2         | Marie       | 200    | 4    | 3         | Alex        | 350    | 2    |
+| 2         | Marie       | 200    | 4    | 6         | John Cena...
+---------------------------- group 4 - totaol sum : ....
+```
+
+Q. 1907. Count Salary Categories
+
+union all 을 사용하면 된다.
+- union all 을 사용하는 이유는 세 가지 경우 중 특정 경우가 빠지게 되면 원하는 답의 형태가 안 나올 수 있어서이다.
+- union all : 중복 제거 하지 않음 // union : 중복 제거함
+- 중복 제거 작업을 하지 않으므로, union all 이 더 빠르다고 함 : https://jmkim.tistory.com/50
+- 근데 꼭 이렇게 풀어야 하나 싶은데, 딱히 방법이 없다.
+
+```sql
+select type.category, IFNULL(accounts_count, 0) as accounts_count
+from (
+    select case when income < 20000 then "Low Salary"
+                when income >= 20000 and income <= 50000 then "Average Salary"
+                when income > 50000 then "High Salary"
+            end as category
+        , count(*) as accounts_count
+    from Accounts
+    group by 1
+) as base
+right join (
+    select "Low Salary" as category
+    union all
+    select "Average Salary" as category
+    union all
+    select "High Salary" as category
+) as type on type.category = base.category
+order by 1
+```
+
+Q. 
+
+```sql
+
+```
+
 Q. 
 
 ```sql
@@ -385,4 +728,21 @@ Q.
 ```sql
 
 ```
+
+Q. 
+
+```sql
+
+```
+
+Q. 
+
+```sql
+
+```
+
+
+
+
+
 
