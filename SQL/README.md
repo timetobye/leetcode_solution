@@ -711,10 +711,277 @@ right join (
 order by 1
 ```
 
+### Subqueries
+
+Q. 1978. Employees Whose Manager Left the Company
+
+너무 어렵게 생각하면 쉽게 작성할 수 있는 것도 어려워진다.
+- 기본적인 접근은 manager_id 가 employee_id에 존재하는지 여부를 어떻게 전개할 것인가이다.
+- check 를 하는 방식도 가능은한데, 결국 subquery, join을 몇 번 잡아먹기 때문에 `in` 을 쓰는 것보다 직관성이 떨어진다.
+
+```sql
+select employee_id
+from (
+    select employee_id, manager_id, salary, check_id
+    from Employees as emp1
+    left join (
+        select employee_id as check_id
+        from Employees
+    ) as emp2 on emp2.check_id = emp1.manager_id
+) as base
+where salary < 30000
+  and check_id is null
+  and manager_id is not null
+order by 1
+
+
+select employee_id
+from Employees
+where salary < 30000
+  and manager_id not in (select employee_id from Employees)
+order by 1
+```
+
+Q. 626. Exchange Seats
+
+두 번째는 다른 사람의 해답을 참고하였다. 결국 id 스위칭이 핵심이고, 연속적인 것이 아이디어를 활용하는데 도움이 된 듯
+
+첫 번째는 그룹을 만들고 그룹내에서 스위칭을 하는 것인데, 결국 서브쿼리가 두 번이나 먹어서, 썩 효율이 좋지 않을 수 있다.
+
+너무 하나의 기능과 함수에 의존 하면 안 될 것 같다.
+
+
+```sql
+select sum(1) over(order by group_number, order_in_group) as id, student
+from (
+    select id, student, group_number
+        , rank() over(partition by group_number order by id desc) as order_in_group
+    from (
+        select id, student, ceil(id/2) as group_number
+        from Seat
+    ) as base
+) as ord
+order by group_number, order_in_group
+
+
+```조금 더 유연하게 접근하는 방법이다.
+select row_number() over(order by new_id) as id, student
+from (
+    select id, student
+        , IF(MOD(id, 2) = 1, id+1, id-1) as new_id
+    from Seat
+) as base
+
 Q. 
 
 ```sql
 
+```
+
+Q. 1341. Movie Rating
+
+
+```sql
+with base as (
+    select mr.*, title, name
+    from MovieRating as mr
+    left join Movies as mv on mv.movie_id = mr.movie_id
+    left join Users as us on us.user_id = mr.user_id
+)
+
+select name as results
+from (
+    select user_id, name, count(*) as rate_count
+    from base
+    group by 1
+    order by rate_count desc, name
+    limit 1
+) as usr
+
+union all
+
+select title as results
+from (
+    select title, avg(rating) as avg_rating
+    from base
+    where created_at between "2020-02-01" and "2020-02-28"
+    group by 1
+    order by avg_rating desc, title
+    limit 1
+) as mv
+```
+
+Q. 1321. Restaurant Growth
+
+`문제 까다로움`
+
+첫 번째 방법 : range BETWEEN interval 6 day preceding and current row
+- range 에는 interval 6 day 와 같이 처리가 안 되는 것으로 알고 있었는데, 지원을 해준다.
+- https://dev.mysql.com/doc/refman/8.0/en/window-functions-frames.html
+- 지원을 해주는 것을 몰랐다면, 풀기 어렵지 않았을까?
+
+두 번째 방법 : 날짜를 미리 생성하고 거기에 맞춘다.
+- 이 방법은 날짜 간격이 크면 클수록 비효율성이 커질 것이다.
+- 다만 직관적인 방법은 될 수 있다.
+
+```sql
+
+
+select visited_on, rolling_amount as amount, round(rolling_amount / 7, 2) as average_amount
+from (
+     select visited_on
+          , total_amount
+          , min(visited_on) over() as base_visited_on
+          , sum(total_amount) over(order by visited_on
+          range BETWEEN interval 6 day preceding and current row) as rolling_amount
+     from (
+          select visited_on, sum(amount) as total_amount
+          from customer
+          group by 1
+     ) as base
+) as calc
+where visited_on >= date_add(base_visited_on, interval 6 day)
+       
+---------------------------
+with recursive generate_date as (
+     select min(visited_on) as generated_date from customer
+     union all
+     select date_add(generated_date, interval 1 day)
+     from generate_date
+     where generated_date < (select max(visited_on) from customer)
+)
+
+select generated_date as visited_on, rolling_total as amount, round(rolling_total/7, 2) as average_amount
+from (
+     select generated_date
+          , sum(IFNULL(total_amount, 0)) over (
+               order by generated_date 
+               rows BETWEEN 6 preceding and current row
+               ) as rolling_total
+          , row_number() over(order by generated_date) as rn
+     from generate_date as gd
+     left join (
+          select visited_on, sum(amount) as total_amount
+          from customer
+          group by 1
+     ) as agg on agg.visited_on = gd.generated_date
+) as base
+where rn >= 7
+order by 1    
+```
+
+Q. 602. Friend Requests II: Who Has the Most Friends
+
+서로 받은 것을 합치는 방법으로 계산. 연산이 많이 들어갈 것으로 생각
+
+두 번째 방법은 서로 id가 찍히면 되는 것을 이용해서 하나의 컬럼으로 처리한 다음에 갯수를 확인
+
+```sql
+with unique_id as (
+     select distinct requester_id as user_id
+     from RequestAccepted
+     union
+     select distinct accepter_id as user_id
+     from RequestAccepted     
+     ), 
+     res_id as (
+        select requester_id, count(distinct accepter_id) as res_cnt
+        from RequestAccepted
+        group by 1
+   ),
+     acc_id as (
+        select accepter_id, count(distinct requester_id) as acc_cnt
+        from RequestAccepted
+        group by 1
+   )
+
+
+select user_id as id, IFNULL(res_cnt, 0) + IFNULL(acc_cnt, 0) as num
+from unique_id
+left join res_id on res_id.requester_id = unique_id.user_id
+left join acc_id on acc_id.accepter_id = unique_id.user_id
+order by num desc
+limit 1
+
+--------------------
+
+select id, count(*) as num
+from (
+     select requester_id as id
+     from RequestAccepted
+
+     union all
+
+     select accepter_id as id
+     from RequestAccepted
+) as base
+group by 1
+order by num desc
+limit 1
+```
+
+**매우 중요한 내용**
+
+MySQL의 윈도우 함수에서 RANGE와 ROWS는 윈도우 프레임을 정의하는 데 사용되는 두 가지 다른 옵션입니다. 이들은 윈도우 함수를 어떤 방식으로 적용할지 결정하는 데 영향을 미칩니다.
+
+ROWS 프레임: ROWS 프레임은 로우(행)의 물리적인 순서를 기반으로 윈도우를 정의합니다. 예를 들어, ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING는 현재 로우를 포함하여 이전 로우와 다음 로우까지를 포함하는 윈도우를 만듭니다.
+
+```sql
+SELECT value,
+       AVG(value) OVER (ORDER BY date ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) AS moving_avg
+FROM your_table;
+```
+
+RANGE 프레임: RANGE 프레임은 값의 순서를 기반으로 윈도우를 정의합니다. 값의 순서는 컬럼 데이터 유형에 따라 다르게 해석될 수 있습니다. 예를 들어, RANGE BETWEEN 1000 PRECEDING AND 1000 FOLLOWING는 현재 값에서 1000만큼 떨어진 범위 내의 값들을 포함하는 윈도우를 만듭니다.
+
+    
+```sql
+SELECT value,
+       AVG(value) OVER (ORDER BY date RANGE BETWEEN 7 PRECEDING AND CURRENT ROW) AS moving_avg
+FROM your_table;
+```
+
+이 두 옵션의 주요 차이점은 윈도우의 정의 방식에 있습니다. ROWS는 로우의 물리적 순서를 기반으로 하며, RANGE는 값의 순서를 기반으로 합니다. 따라서 ROWS를 사용하면 로우의 순서에 따라 프레임을 정의하고, RANGE를 사용하면 값의 순서에 따라 프레임을 정의합니다.
+
+
+Q. 585. Investments in 2016
+
+영어 해석을 잘못해서 꼬였다. 두 번째 inner join 에 대한 조건이 좀 애매했음
+
+```sql
+with base as (
+     select lat, lon, count(*) as cnt
+     from Insurance
+     group by 1, 2
+     having cnt <= 1
+),    calc as (
+     select tiv_2015, count(*) as cnt
+     from Insurance
+     group by 1
+     having cnt >= 2
+)
+
+select round(sum(tiv_2016), 2) as tiv_2016
+from Insurance as ins
+inner join base as bs on bs.lat = ins.lat
+                     and bs.lon = ins.lon
+inner join calc as cl on cl.tiv_2015 = ins.tiv_2015
+```
+
+Q. 185. Department Top Three Salaries
+
+다른 사람의 풀이를 보면 where 절에 서브쿼리를 많이 해두었는데, 개인적으로는 그렇게 하는 스타일이 아니고, 성능적인 이슈도 있을 것으로 본다.
+
+```sql
+select Department, Employee, salary
+from (
+     select dep.name as Department, emp.name as Employee, salary
+          , dense_rank() over(partition by departmentId order by salary desc) as rk
+     from Employee as emp
+     left join Department as dep on dep.id = emp.departmentId
+) as base
+where rk <= 3
+order by 1, 3 desc
 ```
 
 Q. 
@@ -734,13 +1001,6 @@ Q.
 ```sql
 
 ```
-
-Q. 
-
-```sql
-
-```
-
 
 
 
