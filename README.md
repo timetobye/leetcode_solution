@@ -1,8 +1,9 @@
 Leetcode
 ----
-LeetCode 문제 풀이 기록입니다.
+LeetCode 문제 풀이 기록입니다. 파이썬과 SQL 모두 있습니다.
 - 참고 도서 : [파이썬 알고리즘 인터뷰](https://github.com/onlybooks/algorithm-interview)
 - Easy -> Medium -> Hard 순으로 문제 풀이
+- SQL의 경우 SQL 디렉터리 참고 - 총 문제수 50
 
 |문항번호|문제 이름|풀이 기록|성공 여부|비고|
 |---|---|---|---|---|

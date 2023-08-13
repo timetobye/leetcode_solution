@@ -417,10 +417,14 @@ order by 1
 
 Q. User Activity for the Past 30 Days I
 
-서버 오류로 문제 페이지가 열리지 않음
+날짜 문자열 해결 방법 확인 할 것
 
 ```sql
-
+select activity_date as day, count(distinct user_id) as active_users
+from ACtivity
+where activity_date > date_sub("2019-07-27", interval 30 day)
+  and activity_date <= "2019-07-27"
+group by 1
 ```
 
 Q. 1070. Product Sales Analysis III
@@ -543,10 +547,18 @@ group by 1, 2
 order by 1 asc
 ```
 
-Q. 문제 서버 오류
+Q. 1789. Primary Department for Each Employee
+
+아이디어 접근이 필요한 듯
 
 ```sql
-
+select employee_id, department_id
+from (
+     select employee_id, department_id, primary_flag
+          , count(*) over (partition by employee_id) as cnt
+     from Employee
+) as base
+where cnt = 1 or (cnt != 1 and primary_flag ="Y")
 ```
 
 Q. 610. Triangle Judgement
@@ -984,24 +996,156 @@ where rk <= 3
 order by 1, 3 desc
 ```
 
-Q. 
+### Advanced String Functions / Regex / Clause
+
+Q. 1667. Fix Names in a Table
 
 ```sql
-
+select user_id, 
+     concat(
+          upper(left(name, 1)), 
+          lower(substring(name, 2))
+     ) as name
+from Users
+order by user_id asc
 ```
 
 Q. 
 
 ```sql
+select *
+from Patients
+where conditions like 'DIAB1%' or conditions like '% DIAB1%'
 
+--- 다른 사람의 해답들
+SELECT *
+  FROM Patients
+ WHERE conditions REGEXP '\\bDIAB1';
 ```
+The expression conditions REGEXP '\\bDIAB1' is actually the same as conditions LIKE '% DIAB1%' OR conditions LIKE 'DIAB1%';, but it is obviously shorter. 😉
 
-Q. 
+The reason they are the same is that \b matches either a non-word character (in our case, a space) or the position before the first character in the string. Also, you need to escape a backslash with another backslash, like so: \\b. Otherwise, the regular expression won't evaluate.
+
+P.S. \b also matches the position after the last character, but it doesn't matter in the context of this problem.
+
+
+Q. 196. Delete Duplicate Emails
+
+이해를 돕기 위한 설명 자료
+- https://leetcode.com/problems/delete-duplicate-emails/solutions/2627589/my-sql-solution/?envType=study-plan-v2&envId=top-sql-50
 
 ```sql
+-- 이걸로 하면 안 된다. 문제 조건이 select 를 쓰지 말라고 한다.
+select min_id as id, email
+from (
+     select email, min(id) as min_id
+     from Person
+     group by 1
+) as base
+order by 1
 
+-- delete 로 접근하는 방법은 해본 적이 없어서 아래 쿼리를 참고하였음
+delete p1 from person p1,person p2 
+where p1.email=p2.email and p1.id>p2.id;
 ```
 
+Q. 176. Second Highest Salary
+
+where 조건에 some, any 를 쓰는 것은 잘 하지 않다보니, 접근이 어려웠다.
+
+전체적으로 어려운 쿼리보다는 어떻게 풀어나가느냐를 많이 물어보는 것 같다.
+
+참고
+- https://leetcode.com/problems/second-highest-salary/solutions/3855660/beginner-friendly-solution/?envType=study-plan-v2&envId=top-sql-50
+
+```sql
+select ifnull(max(salary), null) as secondhighestsalary
+from employee
+where salary < some(select max(salary) from employee )
+
+
+select IF(max(ds_rk)=1, null, salary) as SecondHighestSalary
+from (
+     select salary
+          , dense_rank() over(order by salary desc) as ds_rk
+     from employee
+) as base
+where ds_rk = 2
+
+-- 가장 아이디어가 좋은 답?
+select
+(select distinct Salary 
+from Employee order by salary desc 
+limit 1 offset 1) 
+as SecondHighestSalary;
+```
+
+Q. 1484. Group Sold Products By The Date
+
+mysql 에서 제공하는 함수 중 `group_concat`을 이용하면 한 방에 풀 수 있다.
+
+```sql
+select sell_date, count(distinct product) as num_sold
+     , group_concat(distinct product order by product) as products
+from Activities
+group by 1
+order by 1
+```
+
+Q. 1327. List the Products Ordered in a Period
+
+```sql
+select product_name, total_unit as unit
+from (
+     select product_id, DATE_FORMAT(order_date, "%Y-%m") as order_month, sum(unit) as total_unit
+     from Orders
+     where DATE_FORMAT(order_date, "%Y-%m") = "2020-02"
+     group by 1, 2
+     having total_unit >= 100
+) as base
+left join Products on Products.product_id = base.product_id
+```
+
+Q. 1517. Find Users With Valid E-Mails
+
+한 번에 처리하는 방법을 떠올리지 못해서, 우선 leetcode.com 부분을 걸러내고 그 후에 도메인 앞부분에 대한 문자열 처리를 진행
+
+정규식 설명 with GPT3.5
+- ^: 문자열의 시작을 나타냅니다.
+- [A-Za-z]: 문자열의 첫 번째 문자는 알파벳(대문자 또는 소문자)이어야 합니다.
+- [A-Za-z0-9_.-]*: 첫 번째 문자 이후에는 알파벳, 숫자, 밑줄 _, 점 . 또는 대시 -가 0회 이상 반복되어야 합니다.
+- $: 문자열의 끝을 나타냅니다.
+
+이 정규식을 사용하면 "prefix name"이 주어진 규칙에 따라 문자, 숫자, 밑줄, 점, 대시를 포함하되 첫 번째 문자는 알파벳으로 시작하는지 여부를 판단할 수 있습니다.
+
+```sql
+select *
+from (
+     select *
+     from Users
+     where mail like '%@leetcode.com'
+) as base
+where replace(mail, "@leetcode.com", '') REGEXP '^[A-Za-z][A-Za-z0-9_.-]*$'
+
+-- 다른 사람의 해답
+elect *
+from users
+where mail REGEXP '^[A-Za-z][A-Za-z0-9_.-]*@leetcode[.]com'
+```
+
+정규식 추가 설명 with GPT3.5 
+
+`^[A-Za-z][A-Za-z0-9_.-]*@leetcode[.]com`를 단계별로 설명한 것입니다.
+- ^: 문자열의 시작을 나타냅니다.
+- [A-Za-z]: 첫 번째 문자는 알파벳(대문자 또는 소문자)이어야 합니다.
+- [A-Za-z0-9_.-]*: 이어지는 문자들은 알파벳, 숫자, 밑줄 _, 점 . 또는 대시 -가 0회 이상 반복될 수 있습니다. 이 부분은 이메일 주소의 로컬 파트에 해당합니다.
+- @: 이메일 주소의 로컬 파트와 도메인 파트를 구분하는 "at" 기호입니다.
+- leetcode: 정확히 "leetcode"라는 문자열이 도메인 파트의 일부로 포함되어야 합니다.
+- [.]: 도메인 파트의 마지막 부분에 오는 마침표 .를 의미합니다. (정규식 내에서 마침표를 일반 문자로 인식시키기 위해 이스케이프 처리)
+- com: 도메인 파트의 마지막 부분으로 정확히 "com"이 와야 합니다.
+- $: 문자열의 끝을 나타냅니다.
+
+이 정규식은 이메일 주소 형식이 prefix@leetcode.com과 같은 패턴을 따라야 하며, prefix는 알파벳으로 시작하는 문자 및 숫자, 밑줄, 점, 대시로 이루어져야 합니다. 도메인 부분은 정확히 "leetcode.com"이어야 합니다. 이렇게 패턴에 맞는 이메일 주소를 찾아내기 위해 사용하는 정규식입니다.
 
 
 
